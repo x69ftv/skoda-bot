@@ -3,211 +3,221 @@ const {
   GatewayIntentBits,
   PermissionsBitField,
   EmbedBuilder,
+  AttachmentBuilder,
   ApplicationCommandOptionType,
 } = require('discord.js');
 
-const OpenAI = require('openai');
+const token = process.env.DISCORD_TOKEN;
+
+if (!token) throw new Error('Missing DISCORD_TOKEN');
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
   ],
 });
 
-const token = process.env.DISCORD_TOKEN;
-
-// 🎨 Aesthetic theme
-const COLORS = {
-  main: '#8b5cf6',
-  good: '#22c55e',
-  bad: '#ef4444',
-  dark: '#0f0f0f',
-};
-
-// 🤖 OpenAI (optional)
-const openai =
-  process.env.AI_INTEGRATIONS_OPENAI_API_KEY &&
-  process.env.AI_INTEGRATIONS_OPENAI_BASE_URL
-    ? new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      })
-    : null;
-
 const prefix = ',';
 
-// ─────────────────────────────
-// 🎭 EMBEDS
-// ─────────────────────────────
-function embed(title, desc, color = COLORS.main) {
+const theme = {
+  main: '#5865F2',
+  good: '#22c55e',
+  bad: '#ef4444',
+  vibe: '#a855f7',
+  warn: '#f59e0b',
+};
+
+function embed(color, title, desc) {
   return new EmbedBuilder()
     .setColor(color)
-    .setTitle(title)
-    .setDescription(desc)
+    .setDescription(title ? `**${title}**\n\n${desc || ''}` : desc)
     .setTimestamp();
 }
 
-// ─────────────────────────────
-// 🚀 READY
-// ─────────────────────────────
+/* ---------------- HELP ---------------- */
+
+const help = [
+  ['✨ general', [
+    ['help', ',help', 'show commands'],
+    ['ping', ',ping', 'bot latency'],
+    ['botinfo', ',botinfo', 'bot info'],
+    ['uptime', ',uptime', 'online time'],
+  ]],
+  ['🛡️ moderation', [
+    ['mute', ',mute @user 10', 'timeout user'],
+    ['unmute', ',unmute @user', 'remove timeout'],
+    ['kick', ',kick @user', 'kick user'],
+    ['ban', ',ban @user', 'ban user'],
+    ['purge', ',purge 50', 'delete messages'],
+    ['slowmode', ',slowmode 5', 'set slowmode'],
+  ]],
+  ['⚙️ server', [
+    ['serverinfo', ',serverinfo', 'server details'],
+    ['userinfo', ',userinfo', 'user details'],
+    ['avatar', ',avatar', 'show avatar'],
+    ['roles', ',roles', 'list roles'],
+  ]],
+  ['🎮 fun', [
+    ['coinflip', ',coinflip', 'flip coin'],
+    ['dice', ',dice', 'roll dice'],
+    ['8ball', ',8ball question', 'magic answer'],
+    ['hug', ',hug @user', 'hug someone'],
+    ['pat', ',pat @user', 'pat someone'],
+    ['slap', ',slap @user', 'slap someone'],
+    ['vibe', ',vibe', 'your mood'],
+    ['quote', ',quote', 'random quote'],
+    ['fact', ',fact', 'random fact'],
+  ]],
+  ['🧠 text', [
+    ['reverse', ',reverse text', 'reverse text'],
+    ['upper', ',upper text', 'uppercase'],
+    ['lower', ',lower text', 'lowercase'],
+    ['clap', ',clap text', '👏 style'],
+    ['ascii', ',ascii text', 'cool text effect'],
+  ]],
+];
+
+/* ---------------- UTIL ---------------- */
+
+const random = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+function getUser(message) {
+  return message.mentions.users.first() || message.author;
+}
+
+/* ---------------- EVENTS ---------------- */
+
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
 
-// ─────────────────────────────
-// 💬 MESSAGE COMMANDS
-// ─────────────────────────────
+/* ---------------- HELP ---------------- */
+
 client.on('messageCreate', async (message) => {
-  if (!message.guild || message.author.bot) return;
-  if (!message.content.startsWith(prefix)) return;
+  if (message.author.bot || !message.guild) return;
 
   const args = message.content.slice(prefix.length).trim().split(/\s+/);
   const cmd = args.shift()?.toLowerCase();
+  if (!message.content.startsWith(prefix)) return;
 
-  // 🏓 ping
+  /* HELP */
+  if (cmd === 'help') {
+    const pages = help.map(([title, cmds]) =>
+      embed(
+        theme.main,
+        title,
+        cmds.map(c => `**${prefix}${c[0]}** — ${c[2]}\n\`${c[1]}\``).join('\n\n')
+      )
+    );
+
+    return message.channel.send({ embeds: pages });
+  }
+
+  /* PING */
   if (cmd === 'ping') {
+    return message.channel.send({ embeds: [embed(theme.main, 'ping', `${client.ws.ping}ms`)] });
+  }
+
+  /* BOT INFO */
+  if (cmd === 'botinfo') {
     return message.channel.send({
       embeds: [
         embed(
-          '🏓 Pong!',
-          `Latency: **${client.ws.ping}ms**`,
-          COLORS.main
+          theme.main,
+          'bot info',
+          `name: ${client.user.tag}\nservers: ${client.guilds.cache.size}`
         ),
       ],
     });
   }
 
-  // 🤖 AI
-  if (cmd === 'ai') {
-    const prompt = args.join(' ');
-    if (!prompt) {
-      return message.channel.send({
-        embeds: [embed('❌ Missing prompt', 'Usage: `,ai hello`', COLORS.bad)],
-      });
-    }
-
-    if (!openai) {
-      return message.channel.send({
-        embeds: [embed('❌ AI not setup', 'Missing API keys', COLORS.bad)],
-      });
-    }
-
-    const msg = await message.channel.send({
-      embeds: [embed('🤖 Thinking...', 'Please wait')],
-    });
-
-    try {
-      const res = await openai.chat.completions.create({
-        model: 'gpt-5-mini',
-        messages: [{ role: 'user', content: prompt }],
-      });
-
-      const text = res.choices[0]?.message?.content || 'No response';
-
-      return msg.edit({
-        embeds: [embed('🤖 AI Response', text)],
-      });
-    } catch {
-      return msg.edit({
-        embeds: [embed('❌ AI Error', 'Try again later', COLORS.bad)],
-      });
-    }
-  }
-
-  // 🎲 coinflip
-  if (cmd === 'coinflip') {
-    const result = Math.random() < 0.5 ? 'Heads' : 'Tails';
-
+  /* UPTIME */
+  if (cmd === 'uptime') {
     return message.channel.send({
-      embeds: [embed('🪙 Coin Flip', `Result: **${result}**`)],
+      embeds: [embed(theme.good, 'uptime', `${Math.floor(client.uptime / 1000)}s`)],
     });
   }
 
-  // ❓ 8ball
-  if (cmd === '8ball') {
-    const answers = ['Yes', 'No', 'Maybe', 'Definitely', 'Ask again'];
-    const pick = answers[Math.floor(Math.random() * answers.length)];
-
-    return message.channel.send({
-      embeds: [embed('🎱 8Ball', pick)],
-    });
-  }
-
-  // 🧹 clear
-  if (cmd === 'clear') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
-      return;
-
+  /* MODERATION */
+  if (cmd === 'purge') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) return;
     const amount = parseInt(args[0]);
-    if (!amount || amount < 1 || amount > 100) return;
-
-    await message.channel.bulkDelete(amount, true);
-
-    return message.channel.send({
-      embeds: [embed('🧹 Cleared', `Deleted **${amount} messages**`, COLORS.good)],
-    });
+    if (!amount) return;
+    await message.channel.bulkDelete(amount);
+    return message.channel.send({ embeds: [embed(theme.good, 'purge', 'messages deleted')] });
   }
 
-  // 📜 help
-  if (cmd === 'help') {
+  if (cmd === 'slowmode') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) return;
+    const sec = parseInt(args[0]);
+    if (!sec && sec !== 0) return;
+    await message.channel.setRateLimitPerUser(sec);
+    return message.channel.send({ embeds: [embed(theme.warn, 'slowmode', `${sec}s set`)] });
+  }
+
+  /* FUN */
+  if (cmd === 'coinflip')
+    return message.channel.send({ embeds: [embed(theme.main, 'coinflip', random(['heads', 'tails']))] });
+
+  if (cmd === 'dice')
+    return message.channel.send({ embeds: [embed(theme.main, 'dice', `${Math.ceil(Math.random() * 6)}/6`)] });
+
+  if (cmd === '8ball')
     return message.channel.send({
-      embeds: [
-        embed(
-const helpSections = [
-  ['✨ general', [
-    ['help', ',help', 'shows all commands'],
-    ['invite', ',invite', 'bot invite link'],
-    ['ping', ',ping', 'check bot latency'],
-    ['botinfo', ',botinfo', 'bot information'],
-    ['uptime', ',uptime', 'bot uptime'],
-  ]],
+      embeds: [embed(theme.vibe, '8ball', random(['yes', 'no', 'maybe', 'absolutely', 'nope']))],
+    });
 
-  ['🤖 ai', [
-    ['ai', ',ai hello', 'ask the AI anything'],
-  ]],
+  if (cmd === 'vibe')
+    return message.channel.send({
+      embeds: [embed(theme.vibe, 'vibe', random(['calm 🌙', 'chaotic ⚡', 'chill 🧊', 'focused 🎯']))],
+    });
 
-  ['🛡️ moderation', [
-    ['mute', ',mute @user 10', 'timeout a user'],
-    ['unmute', ',unmute @user', 'remove timeout'],
-    ['warn', ',warn @user reason', 'warn a user'],
-    ['kick', ',kick @user reason', 'kick a user'],
-    ['ban', ',ban @user reason', 'ban a user'],
-    ['purge', ',purge 50', 'delete messages'],
-    ['slowmode', ',slowmode 5', 'set slowmode'],
-    ['lock', ',lock', 'lock channel'],
-    ['unlock', ',unlock', 'unlock channel'],
-  ]],
+  if (cmd === 'quote')
+    return message.channel.send({
+      embeds: [embed(theme.main, 'quote', random(['keep going.', 'stay strong.', 'lock in.', 'breathe.']))],
+    });
 
-  ['⚙️ server', [
-    ['serverinfo', ',serverinfo', 'server details'],
-    ['userinfo', ',userinfo @user', 'user details'],
-    ['avatar', ',avatar @user', 'user avatar'],
-    ['roles', ',roles', 'list server roles'],
-    ['membercount', ',membercount', 'member count'],
-  ]],
+  if (cmd === 'fact')
+    return message.channel.send({
+      embeds: [embed(theme.main, 'fact', random(['octopuses have 3 hearts', 'bananas are berries', 'sharks existed before trees']))],
+    });
 
-  ['🎮 fun', [
-    ['coinflip', ',coinflip', 'flip a coin'],
-    ['dice', ',dice', 'roll a dice'],
-    ['8ball', ',8ball question', 'magic 8ball'],
-    ['choose', ',choose a | b', 'random choice'],
-    ['hug', ',hug @user', 'hug someone'],
-    ['pat', ',pat @user', 'pat someone'],
-    ['slap', ',slap @user', 'slap someone'],
-  ]],
+  /* TEXT */
+  if (cmd === 'reverse')
+    return message.channel.send(args.join(' ').split('').reverse().join(''));
 
-  ['🧠 text', [
-    ['reverse', ',reverse text', 'reverse text'],
-    ['upper', ',upper text', 'uppercase'],
-    ['lower', ',lower text', 'lowercase'],
-    ['clap', ',clap text', '👏 text 👏 style'],
-    ['math', ',math 5+5', 'solve math'],
-  ]],
-];
+  if (cmd === 'upper')
+    return message.channel.send(args.join(' ').toUpperCase());
 
-// ─────────────────────────────
-// 🔌 LOGIN
-// ─────────────────────────────
+  if (cmd === 'lower')
+    return message.channel.send(args.join(' ').toLowerCase());
+
+  if (cmd === 'clap')
+    return message.channel.send(args.join(' ').split(' ').join(' 👏 '));
+
+  if (cmd === 'ascii') {
+    const text = args.join(' ');
+    return message.channel.send('```' + text + '```');
+  }
+
+  /* USER FUN */
+  if (cmd === 'hug') {
+    const u = getUser(message);
+    return message.channel.send({ embeds: [embed(theme.good, 'hug', `${message.author} hugged ${u}`)] });
+  }
+
+  if (cmd === 'pat') {
+    const u = getUser(message);
+    return message.channel.send({ embeds: [embed(theme.good, 'pat', `${message.author} patted ${u}`)] });
+  }
+
+  if (cmd === 'slap') {
+    const u = getUser(message);
+    return message.channel.send({ embeds: [embed(theme.bad, 'slap', `${message.author} slapped ${u}`)] });
+  }
+});
+
 client.login(token);
