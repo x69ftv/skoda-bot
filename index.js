@@ -3,6 +3,9 @@ const {
   GatewayIntentBits,
   EmbedBuilder,
   PermissionsBitField,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ApplicationCommandOptionType,
 } = require("discord.js");
 
@@ -21,31 +24,37 @@ const client = new Client({
 });
 
 /* =========================
-   🌙 AURA GIF
+   🌙 AURA CORE
 ========================= */
 
 const auraGif =
   "https://media1.tenor.com/m/pJoX_nEXbS4AAAAC/sorrow-angel.gif";
 
 /* =========================
-   ✨ EMBED STYLE
+   ✨ PREMIUM EMBED SYSTEM
 ========================= */
 
-function embed(title, desc, color = "#7c3aed") {
+function ui(title, desc, color = "#7c3aed") {
   return new EmbedBuilder()
     .setColor(color)
     .setTitle(title)
     .setDescription(desc)
     .setImage(auraGif)
     .setTimestamp()
-    .setFooter({ text: "Aura Bot • Premium Moderation" });
+    .setFooter({ text: "Premium OS • Aura System" });
 }
 
 /* =========================
-   🎲 UTIL
+   🎲 UTILS
 ========================= */
 
 const random = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+/* =========================
+   📜 MOD LOG SYSTEM
+========================= */
+
+let modLogChannelId = null;
 
 /* =========================
    🚀 READY
@@ -54,6 +63,36 @@ const random = (arr) => arr[Math.floor(Math.random() * arr.length)];
 client.once("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
+
+/* =========================
+   🎛️ HELP MENU (BUTTON UI)
+========================= */
+
+function helpMenu() {
+  const embed = ui(
+    "💠 Aura OS Control Panel",
+    "Choose a category below:"
+  );
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("mod")
+      .setLabel("Moderation")
+      .setStyle(ButtonStyle.Danger),
+
+    new ButtonBuilder()
+      .setCustomId("fun")
+      .setLabel("Fun")
+      .setStyle(ButtonStyle.Primary),
+
+    new ButtonBuilder()
+      .setCustomId("util")
+      .setLabel("Utility")
+      .setStyle(ButtonStyle.Success)
+  );
+
+  return { embeds: [embed], components: [row] };
+}
 
 /* =========================
    💬 PREFIX COMMANDS
@@ -65,68 +104,66 @@ client.on("messageCreate", async (message) => {
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const cmd = args.shift()?.toLowerCase();
 
-  /* =========================
-     🧠 BASIC
-  ========================= */
+  /* ===== HELP MENU ===== */
+  if (cmd === "help") {
+    return message.channel.send(helpMenu());
+  }
 
+  /* ===== PING ===== */
   if (cmd === "ping")
     return message.channel.send({
-      embeds: [embed("🏓 Ping", `${client.ws.ping}ms`)],
-    });
-
-  if (cmd === "help")
-    return message.channel.send({
-      embeds: [
-        embed(
-          "📖 Help Menu",
-          `
-**Moderation**
-,kick ,ban ,purge
-
-**Fun**
-,8ball ,coinflip ,joke
-
-**Utility**
-,avatar ,userinfo ,serverinfo
-        `
-        ),
-      ],
+      embeds: [ui("🏓 Ping", `${client.ws.ping}ms`)],
     });
 
   /* =========================
      🎮 FUN
   ========================= */
 
-  if (cmd === "8ball") {
-    const res = ["Yes", "No", "Maybe", "Definitely", "Ask again"];
+  if (cmd === "8ball")
     return message.channel.send({
-      embeds: [embed("🎱 8Ball", random(res))],
+      embeds: [ui("🎱 8Ball", random(["Yes", "No", "Maybe"]))],
     });
-  }
 
-  if (cmd === "coinflip") {
+  if (cmd === "coinflip")
     return message.channel.send({
-      embeds: [embed("🪙 Coinflip", random(["Heads", "Tails"]))],
+      embeds: [ui("🪙 Coinflip", random(["Heads", "Tails"]))],
     });
-  }
 
-  if (cmd === "joke") {
+  if (cmd === "joke")
     return message.channel.send({
       embeds: [
-        embed(
+        ui(
           "😂 Joke",
           random([
-            "Why did the coder quit? Too many bugs.",
-            "Debugging is like being the detective in a crime movie.",
+            "Why do programmers hate nature? Bugs.",
+            "Debugging: you vs yourself.",
           ])
         ),
       ],
     });
-  }
 
   /* =========================
-     🛡️ MODERATION (WITH GIF)
+     🛡️ MODERATION + LOGS
   ========================= */
+
+  async function log(action) {
+    if (!modLogChannelId) return;
+    const ch = message.guild.channels.cache.get(modLogChannelId);
+    if (!ch) return;
+
+    ch.send({ embeds: [ui("📜 Mod Log", action)] });
+  }
+
+  if (cmd === "setlog") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return;
+
+    modLogChannelId = message.channel.id;
+
+    return message.channel.send({
+      embeds: [ui("📜 Logs Set", "This channel is now mod logs.")],
+    });
+  }
 
   if (cmd === "kick") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.KickMembers))
@@ -137,10 +174,10 @@ client.on("messageCreate", async (message) => {
 
     await user.kick();
 
+    await log(`👢 Kicked: ${user.user.tag}`);
+
     return message.channel.send({
-      embeds: [
-        embed("👢 Kick", `${user.user.tag} was kicked from the server.`),
-      ],
+      embeds: [ui("👢 Kick", `${user.user.tag} was kicked`)],
     });
   }
 
@@ -153,10 +190,10 @@ client.on("messageCreate", async (message) => {
 
     await user.ban();
 
+    await log(`⛔ Banned: ${user.user.tag}`);
+
     return message.channel.send({
-      embeds: [
-        embed("⛔ Ban", `${user.user.tag} was banned from the server.`),
-      ],
+      embeds: [ui("⛔ Ban", `${user.user.tag} was banned`)],
     });
   }
 
@@ -165,17 +202,19 @@ client.on("messageCreate", async (message) => {
       return;
 
     const amount = parseInt(args[0]);
-    if (!amount || amount < 1 || amount > 100) return;
+    if (!amount || amount > 100) return;
 
     await message.channel.bulkDelete(amount);
 
+    await log(`🧹 Purged ${amount} messages`);
+
     return message.channel.send({
-      embeds: [embed("🧹 Purge", `Deleted ${amount} messages.`)],
+      embeds: [ui("🧹 Purge", `Deleted ${amount} messages`)],
     });
   }
 
   /* =========================
-     👤 UTILITY
+     👤 UTIL
   ========================= */
 
   if (cmd === "avatar") {
@@ -187,32 +226,52 @@ client.on("messageCreate", async (message) => {
           .setColor("#7c3aed")
           .setTitle("🖼 Avatar")
           .setImage(user.displayAvatarURL({ size: 1024 }))
-          .setFooter({ text: "Aura Bot" }),
+          .setFooter({ text: "Aura OS" }),
       ],
     });
   }
+});
 
-  if (cmd === "userinfo") {
-    const user = message.mentions.members.first() || message.member;
+/* =========================
+   🎛️ BUTTON INTERACTIONS
+========================= */
 
-    return message.channel.send({
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  if (interaction.customId === "mod") {
+    return interaction.reply({
       embeds: [
-        embed(
-          "👤 User Info",
-          `User: ${user.user.tag}\nID: ${user.id}`
+        ui(
+          "🛡️ Moderation",
+          "`kick`, `ban`, `purge`, `setlog`"
         ),
       ],
+      ephemeral: true,
     });
   }
 
-  if (cmd === "serverinfo") {
-    return message.channel.send({
+  if (interaction.customId === "fun") {
+    return interaction.reply({
       embeds: [
-        embed(
-          "🏠 Server Info",
-          `Name: ${message.guild.name}\nMembers: ${message.guild.memberCount}`
+        ui(
+          "🎮 Fun",
+          "`8ball`, `coinflip`, `joke`"
         ),
       ],
+      ephemeral: true,
+    });
+  }
+
+  if (interaction.customId === "util") {
+    return interaction.reply({
+      embeds: [
+        ui(
+          "⚙️ Utility",
+          "`avatar`, `ping`, `help`"
+        ),
+      ],
+      ephemeral: true,
     });
   }
 });
@@ -226,26 +285,7 @@ client.on("interactionCreate", async (interaction) => {
 
   if (interaction.commandName === "ping") {
     return interaction.reply({
-      embeds: [embed("🏓 Ping", `${client.ws.ping}ms`)],
-    });
-  }
-
-  if (interaction.commandName === "coinflip") {
-    return interaction.reply({
-      embeds: [embed("🪙 Coinflip", random(["Heads", "Tails"]))],
-    });
-  }
-
-  if (interaction.commandName === "8ball") {
-    const q = interaction.options.getString("question");
-
-    return interaction.reply({
-      embeds: [
-        embed(
-          "🎱 8Ball",
-          `Q: ${q}\nA: ${random(["Yes", "No", "Maybe"])}`
-        ),
-      ],
+      embeds: [ui("🏓 Ping", `${client.ws.ping}ms`)],
     });
   }
 });
