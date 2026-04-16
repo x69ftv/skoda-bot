@@ -21,3 +21,10 @@
     "zod-validation-error": "^5.0.0"
   }
 }
+{
+  "dependencies": {
+    "discord.js": "^14.26.3",
+    "@discordjs/voice": "^0.17.0",
+    "ytdl-core": "^4.11.5"
+  }
+}
