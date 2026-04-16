@@ -1,18 +1,13 @@
 {
-  "name": "skoda-bot",
+  "name": "Skoda",
   "version": "2.0.0",
-  "description": "Full-featured Discord bot with music, mod, fun & utility commands",
   "main": "index.js",
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "@discordjs/voice": "^0.17.0",
+    "ytdl-core": "^4.11.5"
+  },
   "scripts": {
     "start": "node index.js"
-  },
-  "dependencies": {
-    "@discordjs/opus": "^0.9.0",
-    "@discordjs/voice": "^0.17.0",
-    "@distube/ytdl-core": "^4.14.4",
-    "discord.js": "^14.15.3",
-    "ffmpeg-static": "^5.2.0",
-    "libsodium-wrappers": "^0.7.13",
-    "yt-search": "^2.12.2"
   }
 }
