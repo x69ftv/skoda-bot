@@ -155,24 +155,57 @@ client.on('messageCreate', async (message) => {
     return message.channel.send({
       embeds: [
         embed(
-          '✨ Bot Commands',
-          `
-**Main**
-• ,ping
-• ,ai <text>
+const helpSections = [
+  ['✨ general', [
+    ['help', ',help', 'shows all commands'],
+    ['invite', ',invite', 'bot invite link'],
+    ['ping', ',ping', 'check bot latency'],
+    ['botinfo', ',botinfo', 'bot information'],
+    ['uptime', ',uptime', 'bot uptime'],
+  ]],
 
-**Fun**
-• ,coinflip
-• ,8ball
+  ['🤖 ai', [
+    ['ai', ',ai hello', 'ask the AI anything'],
+  ]],
 
-**Moderation**
-• ,clear <1-100>
-          `
-        ),
-      ],
-    });
-  }
-});
+  ['🛡️ moderation', [
+    ['mute', ',mute @user 10', 'timeout a user'],
+    ['unmute', ',unmute @user', 'remove timeout'],
+    ['warn', ',warn @user reason', 'warn a user'],
+    ['kick', ',kick @user reason', 'kick a user'],
+    ['ban', ',ban @user reason', 'ban a user'],
+    ['purge', ',purge 50', 'delete messages'],
+    ['slowmode', ',slowmode 5', 'set slowmode'],
+    ['lock', ',lock', 'lock channel'],
+    ['unlock', ',unlock', 'unlock channel'],
+  ]],
+
+  ['⚙️ server', [
+    ['serverinfo', ',serverinfo', 'server details'],
+    ['userinfo', ',userinfo @user', 'user details'],
+    ['avatar', ',avatar @user', 'user avatar'],
+    ['roles', ',roles', 'list server roles'],
+    ['membercount', ',membercount', 'member count'],
+  ]],
+
+  ['🎮 fun', [
+    ['coinflip', ',coinflip', 'flip a coin'],
+    ['dice', ',dice', 'roll a dice'],
+    ['8ball', ',8ball question', 'magic 8ball'],
+    ['choose', ',choose a | b', 'random choice'],
+    ['hug', ',hug @user', 'hug someone'],
+    ['pat', ',pat @user', 'pat someone'],
+    ['slap', ',slap @user', 'slap someone'],
+  ]],
+
+  ['🧠 text', [
+    ['reverse', ',reverse text', 'reverse text'],
+    ['upper', ',upper text', 'uppercase'],
+    ['lower', ',lower text', 'lowercase'],
+    ['clap', ',clap text', '👏 text 👏 style'],
+    ['math', ',math 5+5', 'solve math'],
+  ]],
+];
 
 // ─────────────────────────────
 // 🔌 LOGIN
