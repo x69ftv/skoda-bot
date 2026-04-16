@@ -1,297 +1,323 @@
 const {
   Client,
   GatewayIntentBits,
-  EmbedBuilder,
   PermissionsBitField,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
+  EmbedBuilder,
+  AttachmentBuilder,
   ApplicationCommandOptionType,
 } = require("discord.js");
 
 const token = process.env.DISCORD_TOKEN;
-const prefix = ",";
 
-if (!token) throw new Error("Missing DISCORD_TOKEN");
+if (!token) {
+  throw new Error("Missing DISCORD_TOKEN in environment variables.");
+}
+
+/* -------------------- CLIENT -------------------- */
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
   ],
 });
 
-/* =========================
-   🌙 AURA CORE
-========================= */
+/* -------------------- CONFIG -------------------- */
 
+const prefix = ",";
 const auraGif =
   "https://media1.tenor.com/m/pJoX_nEXbS4AAAAC/sorrow-angel.gif";
 
-/* =========================
-   ✨ PREMIUM EMBED SYSTEM
-========================= */
+let auraBuffer;
 
-function ui(title, desc, color = "#7c3aed") {
+/* -------------------- EMBED STYLE -------------------- */
+
+function baseEmbed(title, desc) {
   return new EmbedBuilder()
-    .setColor(color)
-    .setTitle(title)
-    .setDescription(desc)
-    .setImage(auraGif)
-    .setTimestamp()
-    .setFooter({ text: "Premium OS • Aura System" });
+    .setColor("#2b2d31")
+    .setTitle(title || null)
+    .setDescription(desc || null)
+    .setFooter({ text: "premium bot v3" })
+    .setTimestamp();
 }
 
-/* =========================
-   🎲 UTILS
-========================= */
+function successEmbed(desc) {
+  return baseEmbed("✅ Success", desc);
+}
 
-const random = (arr) => arr[Math.floor(Math.random() * arr.length)];
+function errorEmbed(desc) {
+  return baseEmbed("❌ Error", desc);
+}
 
-/* =========================
-   📜 MOD LOG SYSTEM
-========================= */
+function auraEmbed(desc) {
+  return new EmbedBuilder()
+    .setColor("#2b2d31")
+    .setDescription(desc)
+    .setImage("attachment://aura.gif")
+    .setFooter({ text: "premium moderation system" });
+}
 
-let modLogChannelId = null;
+/* -------------------- GIF -------------------- */
 
-/* =========================
-   🚀 READY
-========================= */
+async function getAura() {
+  if (!auraBuffer) {
+    const res = await fetch(auraGif);
+    auraBuffer = Buffer.from(await res.arrayBuffer());
+  }
+  return new AttachmentBuilder(auraBuffer, { name: "aura.gif" });
+}
+
+/* -------------------- HELPERS -------------------- */
+
+function isMod(member) {
+  return member.permissions.has(
+    PermissionsBitField.Flags.ModerateMembers
+  );
+}
+
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/* -------------------- STATUS -------------------- */
 
 client.once("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
 
-/* =========================
-   🎛️ HELP MENU (BUTTON UI)
-========================= */
-
-function helpMenu() {
-  const embed = ui(
-    "💠 Aura OS Control Panel",
-    "Choose a category below:"
-  );
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("mod")
-      .setLabel("Moderation")
-      .setStyle(ButtonStyle.Danger),
-
-    new ButtonBuilder()
-      .setCustomId("fun")
-      .setLabel("Fun")
-      .setStyle(ButtonStyle.Primary),
-
-    new ButtonBuilder()
-      .setCustomId("util")
-      .setLabel("Utility")
-      .setStyle(ButtonStyle.Success)
-  );
-
-  return { embeds: [embed], components: [row] };
-}
-
-/* =========================
-   💬 PREFIX COMMANDS
-========================= */
+/* -------------------- MESSAGE COMMANDS -------------------- */
 
 client.on("messageCreate", async (message) => {
-  if (message.author.bot || !message.content.startsWith(prefix)) return;
+  if (!message.guild || message.author.bot) return;
+  if (!message.content.startsWith(prefix)) return;
 
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const cmd = args.shift()?.toLowerCase();
 
-  /* ===== HELP MENU ===== */
+/* ---------------- HELP ---------------- */
+
   if (cmd === "help") {
-    return message.channel.send(helpMenu());
+    return message.channel.send({
+      embeds: [
+        baseEmbed(
+          "📖 Commands",
+          `
+moderation:
+\`mute, unmute, kick, ban, warn, purge, slowmode, lock, unlock\`
+
+utility:
+\`ping, avatar, serverinfo, userinfo, roleinfo, channelinfo\`
+
+fun:
+\`8ball, coinflip, dice, ship, roast, compliment, joke, quote\`
+
+text:
+\`reverse, upper, lower, clap, vaporwave\`
+
+system:
+\`uptime, invite, botinfo\`
+`
+        ),
+      ],
+    });
   }
 
-  /* ===== PING ===== */
+/* ---------------- SYSTEM ---------------- */
+
   if (cmd === "ping")
     return message.channel.send({
-      embeds: [ui("🏓 Ping", `${client.ws.ping}ms`)],
+      embeds: [successEmbed(`Latency: ${client.ws.ping}ms`)],
     });
 
-  /* =========================
-     🎮 FUN
-  ========================= */
+  if (cmd === "uptime")
+    return message.channel.send({
+      embeds: [successEmbed(`Uptime: ${process.uptime().toFixed(0)}s`)],
+    });
+
+  if (cmd === "invite")
+    return message.channel.send({
+      embeds: [
+        baseEmbed(
+          "Invite",
+          `https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=8&scope=bot%20applications.commands`
+        ),
+      ],
+    });
+
+/* ---------------- MODERATION (AURA GIF) ---------------- */
+
+  async function modReply(text) {
+    return message.channel.send({
+      embeds: [auraEmbed(text)],
+      files: [await getAura()],
+    });
+  }
+
+  if (cmd === "mute") {
+    if (!isMod(message.member)) return;
+    const user = message.mentions.members.first();
+    const time = parseInt(args[1]) || 5;
+    if (!user) return;
+    await user.timeout(time * 60000);
+    return modReply(`${user.user.tag} muted for ${time} minutes`);
+  }
+
+  if (cmd === "unmute") {
+    if (!isMod(message.member)) return;
+    const user = message.mentions.members.first();
+    if (!user) return;
+    await user.timeout(null);
+    return modReply(`${user.user.tag} unmuted`);
+  }
+
+  if (cmd === "kick") {
+    if (!isMod(message.member)) return;
+    const user = message.mentions.members.first();
+    if (!user) return;
+    await user.kick();
+    return modReply(`${user.user.tag} kicked`);
+  }
+
+  if (cmd === "ban") {
+    if (!isMod(message.member)) return;
+    const user = message.mentions.members.first();
+    if (!user) return;
+    await user.ban();
+    return modReply(`${user.user.tag} banned`);
+  }
+
+  if (cmd === "purge") {
+    if (!isMod(message.member)) return;
+    const amt = parseInt(args[0]);
+    if (!amt || amt > 100) return;
+    await message.channel.bulkDelete(amt);
+    return modReply(`Deleted ${amt} messages`);
+  }
+
+  if (cmd === "slowmode") {
+    if (!isMod(message.member)) return;
+    const sec = parseInt(args[0]);
+    await message.channel.setRateLimitPerUser(sec);
+    return modReply(`Slowmode set to ${sec}s`);
+  }
+
+  if (cmd === "lock") {
+    if (!isMod(message.member)) return;
+    await message.channel.permissionOverwrites.edit(
+      message.guild.roles.everyone,
+      { SendMessages: false }
+    );
+    return modReply("Channel locked");
+  }
+
+  if (cmd === "unlock") {
+    if (!isMod(message.member)) return;
+    await message.channel.permissionOverwrites.edit(
+      message.guild.roles.everyone,
+      { SendMessages: null }
+    );
+    return modReply("Channel unlocked");
+  }
+
+/* ---------------- UTILITY ---------------- */
+
+  if (cmd === "avatar") {
+    const user = message.mentions.users.first() || message.author;
+    return message.channel.send({
+      embeds: [
+        baseEmbed("Avatar", `${user.tag}`)
+          .setImage(user.displayAvatarURL({ size: 1024 })),
+      ],
+    });
+  }
+
+  if (cmd === "serverinfo") {
+    return message.channel.send({
+      embeds: [
+        baseEmbed(
+          "Server Info",
+          `
+Name: ${message.guild.name}
+Members: ${message.guild.memberCount}
+Channels: ${message.guild.channels.cache.size}
+Roles: ${message.guild.roles.cache.size}
+`
+        ),
+      ],
+    });
+  }
+
+  if (cmd === "userinfo") {
+    const user = message.mentions.members.first() || message.member;
+    return message.channel.send({
+      embeds: [
+        baseEmbed(
+          "User Info",
+          `
+User: ${user.user.tag}
+ID: ${user.id}
+Joined: <t:${Math.floor(user.joinedTimestamp / 1000)}:R>
+`
+        ),
+      ],
+    });
+  }
+
+/* ---------------- FUN ---------------- */
 
   if (cmd === "8ball")
     return message.channel.send({
-      embeds: [ui("🎱 8Ball", random(["Yes", "No", "Maybe"]))],
+      embeds: [
+        successEmbed(
+          pick(["yes", "no", "maybe", "definitely", "ask again"])
+        ),
+      ],
     });
 
   if (cmd === "coinflip")
     return message.channel.send({
-      embeds: [ui("🪙 Coinflip", random(["Heads", "Tails"]))],
+      embeds: [successEmbed(pick(["heads", "tails"]))],
     });
 
-  if (cmd === "joke")
+  if (cmd === "dice")
+    return message.channel.send({
+      embeds: [successEmbed(`Rolled: ${Math.floor(Math.random() * 6) + 1}`)],
+    });
+
+  if (cmd === "roast")
     return message.channel.send({
       embeds: [
-        ui(
-          "😂 Joke",
-          random([
-            "Why do programmers hate nature? Bugs.",
-            "Debugging: you vs yourself.",
+        errorEmbed(
+          pick([
+            "your WiFi has more personality than you",
+            "you move like lag",
+            "even NPCs have better timing",
           ])
         ),
       ],
     });
 
-  /* =========================
-     🛡️ MODERATION + LOGS
-  ========================= */
+/* ---------------- TEXT ---------------- */
 
-  async function log(action) {
-    if (!modLogChannelId) return;
-    const ch = message.guild.channels.cache.get(modLogChannelId);
-    if (!ch) return;
+  if (cmd === "reverse")
+    return message.channel.send(args.join(" ").split("").reverse().join(""));
 
-    ch.send({ embeds: [ui("📜 Mod Log", action)] });
-  }
+  if (cmd === "upper")
+    return message.channel.send(args.join(" ").toUpperCase());
 
-  if (cmd === "setlog") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return;
+  if (cmd === "lower")
+    return message.channel.send(args.join(" ").toLowerCase());
 
-    modLogChannelId = message.channel.id;
+  if (cmd === "clap")
+    return message.channel.send(args.join(" 👏 "));
 
-    return message.channel.send({
-      embeds: [ui("📜 Logs Set", "This channel is now mod logs.")],
-    });
-  }
+/* ---------------- DEFAULT ---------------- */
 
-  if (cmd === "kick") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.KickMembers))
-      return;
-
-    const user = message.mentions.members.first();
-    if (!user) return;
-
-    await user.kick();
-
-    await log(`👢 Kicked: ${user.user.tag}`);
-
-    return message.channel.send({
-      embeds: [ui("👢 Kick", `${user.user.tag} was kicked`)],
-    });
-  }
-
-  if (cmd === "ban") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers))
-      return;
-
-    const user = message.mentions.members.first();
-    if (!user) return;
-
-    await user.ban();
-
-    await log(`⛔ Banned: ${user.user.tag}`);
-
-    return message.channel.send({
-      embeds: [ui("⛔ Ban", `${user.user.tag} was banned`)],
-    });
-  }
-
-  if (cmd === "purge") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
-      return;
-
-    const amount = parseInt(args[0]);
-    if (!amount || amount > 100) return;
-
-    await message.channel.bulkDelete(amount);
-
-    await log(`🧹 Purged ${amount} messages`);
-
-    return message.channel.send({
-      embeds: [ui("🧹 Purge", `Deleted ${amount} messages`)],
-    });
-  }
-
-  /* =========================
-     👤 UTIL
-  ========================= */
-
-  if (cmd === "avatar") {
-    const user = message.mentions.users.first() || message.author;
-
-    return message.channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor("#7c3aed")
-          .setTitle("🖼 Avatar")
-          .setImage(user.displayAvatarURL({ size: 1024 }))
-          .setFooter({ text: "Aura OS" }),
-      ],
-    });
-  }
+  return;
 });
 
-/* =========================
-   🎛️ BUTTON INTERACTIONS
-========================= */
-
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isButton()) return;
-
-  if (interaction.customId === "mod") {
-    return interaction.reply({
-      embeds: [
-        ui(
-          "🛡️ Moderation",
-          "`kick`, `ban`, `purge`, `setlog`"
-        ),
-      ],
-      ephemeral: true,
-    });
-  }
-
-  if (interaction.customId === "fun") {
-    return interaction.reply({
-      embeds: [
-        ui(
-          "🎮 Fun",
-          "`8ball`, `coinflip`, `joke`"
-        ),
-      ],
-      ephemeral: true,
-    });
-  }
-
-  if (interaction.customId === "util") {
-    return interaction.reply({
-      embeds: [
-        ui(
-          "⚙️ Utility",
-          "`avatar`, `ping`, `help`"
-        ),
-      ],
-      ephemeral: true,
-    });
-  }
-});
-
-/* =========================
-   ⚡ SLASH COMMANDS
-========================= */
-
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-
-  if (interaction.commandName === "ping") {
-    return interaction.reply({
-      embeds: [ui("🏓 Ping", `${client.ws.ping}ms`)],
-    });
-  }
-});
-
-/* =========================
-   🚀 LOGIN
-========================= */
+/* ---------------- LOGIN ---------------- */
 
 client.login(token);
